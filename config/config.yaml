@@ -1,0 +1,130 @@
+# Configuración central del pipeline ETL
+# Proyecto: Monitoreo del servicio de energía en ZNI (suroccidente colombiano)
+#
+# Completado con los resultados reales del perfilado (Fase 1, ejecutada 2026-09-30).
+# Ver logs/perfilado/*.csv para el detalle completo (columnas, muestras, formatos DANE,
+# llaves, cruces). Los campos aquí son nombres reales confirmados contra la API, no
+# heurísticas.
+
+fuentes:
+  prestacion:
+    id: "3ebi-d83g"
+    nombre: "Estado de la prestación del servicio de energía en Zonas No Interconectadas"
+    dueno: "Ministerio de Minas y Energía / IPSE"
+    sistema: "Socrata (datos.gov.co)"
+    granularidad: "localidad x mes"
+    frecuencia_nominal_meses: 1
+    fecha_corte_documentada: "2026-01"              # según el documento de diseño
+    fecha_corte_real_rows_updated_at: "2026-03-13"  # confirmado en el perfilado; NO coincide con ene-2026
+    filas_totales_perfilado: 6216
+    rol: "base del modelo (tabla de hechos de prestación)"
+    campos_llave: ["id_localidad", "anio", "mes"]
+    campos_geograficos: ["id_dpto", "id_mpio", "id_localidad"]  # dpto/mpio/localidad (sin id_) son NOMBRES, no usar para unir
+    campos_criticos: ["id_localidad", "anio", "mes", "energia_activa", "energia_reactiva", "prom_diario_horas"]
+    campo_horas_servicio: "prom_diario_horas"
+    duplicados_llave_pct: 3.28  # por encima del umbral de 1%; se trata en Fase 3 (silver)
+    notas:
+      - "id_dpto/id_mpio/id_localidad llegan como texto pero SIN ceros a la izquierda (ej. '5873' en vez de '05873'); normalizar con zfill(2/5/8) en silver."
+      - "3.28% de duplicados en id_localidad+anio+mes (75 grupos, 204 filas de 6216). Revisar en Fase 3 si son revisiones/versiones del reporte antes de decidir la regla de deduplicación."
+
+  operacion_diaria:
+    id: "qwe5-ycap"
+    nombre: "Registro de Operación Diario ZNI"
+    dueno: "Superintendencia de Servicios Públicos (Superservicios)"
+    sistema: "Socrata (datos.gov.co)"
+    granularidad: "localidad x dia x generador (serie_generador); agregar para llegar a localidad-dia"
+    frecuencia_nominal_meses: 6
+    fecha_corte_documentada: "2023-06"
+    fecha_corte_real_rows_updated_at: "2023-06-01"  # coincide con lo documentado (fuente congelada)
+    filas_totales_perfilado: 455207
+    rol: "relación operador-localidad (vigente hasta 2023-06)"
+    campos_llave: ["codigo_localidad", "fecha"]
+    campos_geograficos: ["codigo_localidad"]  # dane_nom_dpto/dane_nom_mpio/dane_nom_poblad son NOMBRES, no usar para unir
+    campos_criticos: ["codigo_localidad", "fecha", "energia_generada", "identificador_empresa"]
+    campo_identificador_empresa: "identificador_empresa"
+    duplicados_llave_pct: 4.01  # varios generadores por localidad-día; agregar (sumar) antes de unir, no es un defecto
+    notas:
+      - "codigo_localidad tiene 12-13 dígitos, NO 8: no es el mismo esquema que id_localidad de prestacion (0% de cruce directo)."
+      - "HALLAZGO: reducido a los primeros 5 dígitos sí cruza bien contra id_mpio/id_localidad de prestacion (100%/87.5%). La unión con prestacion se implementa a nivel de MUNICIPIO+mes, no de localidad+mes como decía el documento original."
+
+  pqr:
+    id: "5wua-nr2d"
+    nombre: "Reclamaciones y Quejas - Informe PQR"
+    dueno: "Superintendencia de Servicios Públicos (Superservicios)"
+    sistema: "Socrata (datos.gov.co)"
+    granularidad: "una fila por caso/radicado (rad_recibido); se agrega a municipio-semestre-empresa antes de unir"
+    frecuencia_nominal_meses: 6
+    fecha_corte_documentada: "2024-03"
+    fecha_corte_real_rows_updated_at: "2024-03-06"  # coincide con lo documentado (fuente congelada)
+    filas_totales_perfilado: 25273
+    rol: "tabla de hechos de PQR (contexto general de servicios públicos; ver notas)"
+    campos_llave: ["car_t1554_dane_depto", "car_t1554_dane_mpio", "identificador_empresa", "car_carg_ano", "car_carg_periodo"]
+    campos_geograficos: ["car_t1554_dane_depto", "car_t1554_dane_mpio"]  # el municipio real = concatenar ambos, ver notas
+    campos_periodo: ["car_carg_ano", "car_carg_periodo"]  # car_carg_periodo es MES (1-12), no semestre: derivar semestre en Fase 3
+    campos_criticos: ["car_t1554_dane_depto", "car_t1554_dane_mpio", "car_carg_ano", "car_carg_periodo", "rad_recibido"]
+    campo_identificador_empresa: "identificador_empresa"
+    duplicados_llave_pct: 87.76  # esperado: la llave agregada colapsa muchos casos individuales, no es un defecto
+    notas:
+      - "HALLAZGO CRÍTICO (decisión 2026-09-30): are_esp_nombre (empresa reclamada) son todas distribuidoras de GAS, no operadores eléctricos de ZNI. identificador_empresa cruza en 0% contra operacion_diaria (76 vs 59 valores distintos, intersección vacía)."
+      - "Decisión: se mantiene la fuente (es la que cita el documento de diseño) pero la unión con operacion_diaria se limita a municipio, sin usar identificador_empresa: la propia regla de respaldo del diseño ('si no hay identificador común, la unión se limita al municipio') ya contemplaba este caso."
+      - "car_t1554_dane_mpio NO trae el prefijo de departamento (ej. '895' para Zapatoca, Santander = 68895 completo). El código de municipio real se arma con car_t1554_dane_depto (2 dígitos, zfill) + car_t1554_dane_mpio (3 dígitos, zfill)."
+      - "car_carg_periodo toma valores 1-12 (mes de carga), no semestre 1-2: el semestre se deriva (ene-jun=1, jul-dic=2) en Fase 3."
+      - "rad_recibido muestra valores anormalmente largos con el prefijo repetido dentro del mismo string (posible artefacto de exportación de Socrata); no usarlo como llave única sin limpiarlo primero."
+
+geografia:
+  # Filtro por los 2 primeros dígitos del código DANE de municipio
+  departamentos_dane:
+    valle_del_cauca: "76"
+    cauca: "19"
+    narino: "52"
+    putumayo: "86"
+
+codigos_dane:
+  longitud_departamento: 2
+  longitud_municipio: 5
+  # No existe una longitud única de "código de localidad": prestacion usa 8 dígitos
+  # (depto 2 + mpio 3 + consecutivo 3), operacion_diaria usa 12-13 (esquema propio, no
+  # DIVIPOLA estándar). Ambos comparten el prefijo de municipio de 5 dígitos, que es el
+  # nivel real en el que se pueden unir (ver notas de operacion_diaria arriba).
+
+umbrales_calidad:
+  dane_valido_pct_minimo: 95
+  duplicados_pct_maximo: 1
+  campos_criticos_completos_pct_minimo: 98
+  identificador_empresa_comun_pct_minimo: 95  # no se alcanza entre operacion_diaria y pqr (0%); es un resultado esperado y documentado, no bloquea el pipeline (ver notas de pqr)
+
+frescura:
+  vigente_max_periodos_retraso: 2
+  # Desactualizada: más de 2 periodos de retraso frente a la frecuencia nominal
+  # Congelada: fuente sin actualización nominal (fecha_corte_real_rows_updated_at arriba)
+
+uniones:
+  prestacion_operacion_diaria:
+    nivel: "municipio + mes"  # AJUSTADO: no localidad + mes (ver hallazgo en operacion_diaria)
+    tipo: "left join desde prestacion (agregada de localidad a municipio); operacion_diaria agregada de diario/generador a mensual por municipio"
+    vigente_hasta: "2023-06"
+    despues_de_vigencia: "sin dato vigente"
+  prestacion_pqr:
+    nivel: "municipio + semestre"
+    tipo: "left join desde prestacion (mes -> semestre, localidad -> municipio); pqr se agrega por municipio-semestre (depto+mpio compuestos, car_carg_ano/periodo -> semestre) antes de unir"
+    vigente_hasta: "2024-03"
+  operacion_diaria_pqr:
+    nivel: "municipio"  # AJUSTADO: sin identificador_empresa (cruce real 0%, ver hallazgo en pqr)
+    tipo: "left join desde el par operador-municipio hacia pqr agregada por municipio-semestre"
+
+notas_para_fase_4_gold:
+  - "puente_operador_localidad (sección 3 del diseño) solo puede tener precisión de MUNICIPIO, no de localidad individual, con los datos reales: documentarlo así en el modelo gold (considerar renombrar a puente_operador_municipio, o dejar el nombre y aclarar la granularidad real en su descripción)."
+  - "La pregunta 4 del MVP ('qué operador presta el servicio en cada localidad') solo se puede responder a nivel de municipio."
+
+rutas:
+  bronze: "data/bronze"
+  silver: "data/silver"
+  gold: "data/gold"
+  logs: "logs"
+  logs_perfilado: "logs/perfilado"
+
+api:
+  base_url: "https://www.datos.gov.co"
+  limite_pagina: 50000
+  reintentos_maximos: 5
+  backoff_segundos_base: 2
