@@ -22,10 +22,11 @@ fuentes:
     campos_geograficos: ["id_dpto", "id_mpio", "id_localidad"]  # dpto/mpio/localidad (sin id_) son NOMBRES, no usar para unir
     campos_criticos: ["id_localidad", "anio", "mes", "energia_activa", "energia_reactiva", "prom_diario_horas"]
     campo_horas_servicio: "prom_diario_horas"
-    duplicados_llave_pct: 3.28  # por encima del umbral de 1%; se trata en Fase 3 (silver)
+    duplicados_llave_pct_nacional_perfilado: 3.28  # perfilado (Fase 1), dato nacional sin filtrar por departamento
+    duplicados_llave_pct_silver: 4.6  # medido en silver (Fase 3) YA filtrado a los 4 departamentos: 35 grupos, 107 de 2327 filas
     notas:
-      - "id_dpto/id_mpio/id_localidad llegan como texto pero SIN ceros a la izquierda (ej. '5873' en vez de '05873'); normalizar con zfill(2/5/8) en silver."
-      - "3.28% de duplicados en id_localidad+anio+mes (75 grupos, 204 filas de 6216). Revisar en Fase 3 si son revisiones/versiones del reporte antes de decidir la regla de deduplicación."
+      - "id_dpto/id_mpio/id_localidad llegan como texto pero SIN ceros a la izquierda (ej. '5873' en vez de '05873'); normalizado con zfill(2/5/8) en silver (Fase 3), validado al 100% con probar_validez_dane."
+      - "Duplicados de id_localidad+anio+mes revisados a mano (Fase 3): las filas NO son copias exactas, tienen energia_activa/prom_diario_horas distintos entre sí (ver ejemplo en el commit de Fase 3). clean_excel.py NO las colapsa ni inventa una regla de agregación; quedan las N filas tal cual, con probar_unicidad_llave reportando aprobado=False a propósito. Fase 4 (gold) debe decidir cómo combinarlas (¿sumar energía por ser plantas/mediciones distintas en la misma localidad? ¿son revisiones del reporte?) antes de construir fact_prestacion."
 
   operacion_diaria:
     id: "qwe5-ycap"
@@ -42,10 +43,12 @@ fuentes:
     campos_geograficos: ["codigo_localidad"]  # dane_nom_dpto/dane_nom_mpio/dane_nom_poblad son NOMBRES, no usar para unir
     campos_criticos: ["codigo_localidad", "fecha", "energia_generada", "identificador_empresa"]
     campo_identificador_empresa: "identificador_empresa"
-    duplicados_llave_pct: 4.01  # varios generadores por localidad-día; agregar (sumar) antes de unir, no es un defecto
+    duplicados_llave_pct_nacional_perfilado: 4.01  # perfilado (Fase 1), dato nacional sin filtrar por departamento
+    duplicados_llave_pct_silver: 0.69  # medido en silver (Fase 3) ya filtrado: 826 grupos, 1740 de 250386 filas
     notas:
       - "codigo_localidad tiene 12-13 dígitos, NO 8: no es el mismo esquema que id_localidad de prestacion (0% de cruce directo)."
       - "HALLAZGO: reducido a los primeros 5 dígitos sí cruza bien contra id_mpio/id_localidad de prestacion (100%/87.5%). La unión con prestacion se implementa a nivel de MUNICIPIO+mes, no de localidad+mes como decía el documento original."
+      - "codigo_localidad+fecha no es 100% único porque puede haber varios generadores (serie_generador) reportando el mismo día en la misma localidad: NO son duplicados a eliminar, son filas legítimas que Fase 4 debe sumar (energia_generada) al agregar a mensual."
 
   pqr:
     id: "5wua-nr2d"
@@ -63,7 +66,8 @@ fuentes:
     campos_periodo: ["car_carg_ano", "car_carg_periodo"]  # car_carg_periodo es MES (1-12), no semestre: derivar semestre en Fase 3
     campos_criticos: ["car_t1554_dane_depto", "car_t1554_dane_mpio", "car_carg_ano", "car_carg_periodo", "rad_recibido"]
     campo_identificador_empresa: "identificador_empresa"
-    duplicados_llave_pct: 87.76  # esperado: la llave agregada colapsa muchos casos individuales, no es un defecto
+    duplicados_llave_pct_nacional_perfilado: 87.76  # perfilado (Fase 1), dato nacional sin filtrar por departamento
+    duplicados_llave_pct_silver: 92.12  # medido en silver (Fase 3) ya filtrado: 597 grupos, 8551 de 9282 filas. Esperado: la llave agregada (municipio-empresa-año-periodo) colapsa muchos casos individuales, no es un defecto.
     notas:
       - "HALLAZGO CRÍTICO (decisión 2026-09-30): are_esp_nombre (empresa reclamada) son todas distribuidoras de GAS, no operadores eléctricos de ZNI. identificador_empresa cruza en 0% contra operacion_diaria (76 vs 59 valores distintos, intersección vacía)."
       - "Decisión: se mantiene la fuente (es la que cita el documento de diseño) pero la unión con operacion_diaria se limita a municipio, sin usar identificador_empresa: la propia regla de respaldo del diseño ('si no hay identificador común, la unión se limita al municipio') ya contemplaba este caso."
@@ -115,6 +119,11 @@ uniones:
 notas_para_fase_4_gold:
   - "puente_operador_localidad (sección 3 del diseño) solo puede tener precisión de MUNICIPIO, no de localidad individual, con los datos reales: documentarlo así en el modelo gold (considerar renombrar a puente_operador_municipio, o dejar el nombre y aclarar la granularidad real en su descripción)."
   - "La pregunta 4 del MVP ('qué operador presta el servicio en cada localidad') solo se puede responder a nivel de municipio."
+  - "PENDIENTE (sección 2 del prompt, no implementado en silver a propósito: es lógica de unión/gold): cada registro gold debe llevar fecha_corte_fuente, estado_frescura (vigente/desactualizada/congelada, usando frescura.vigente_max_periodos_retraso y fecha_corte_real_rows_updated_at/frecuencia_nominal_meses de cada fuente arriba) y es_comparable. Los periodos no comparables se marcan, no se descartan."
+  - "PENDIENTE (sección 5 del prompt): generar data/gold/kpis_pipeline.csv con % fuentes integradas, % variables estandarizadas, % registros duplicados, % registros con trazabilidad, % campos críticos completos, número de errores de transformación, % reglas de negocio documentadas, % información reproducible. Varias de estas métricas ya se pueden calcular con quality_checks.py sobre silver; las que dependen de las uniones (p. ej. % fuentes integradas) solo se conocen una vez construido gold."
+  - "Antes de construir cada unión, correr las 5 pruebas de quality_checks.py y documentar el resultado (aprobado o no) como pide la sección 5: 'ninguna unión se construye si no pasa las pruebas de calidad'. identificador_empresa_comun ya se sabe que da aprobado=False (0%, ver notas de pqr arriba) — es el resultado esperado, no hay que perseguir un 95% ahí."
+  - "RIESGO DE CALENDARIO: hoy es 2026-09-30. La meta 'fuentes integradas' es 5-oct-2026 (KR1), pero integradas en el sentido del OKR implica gold + carga a PostgreSQL, no solo bronze/silver. Con Fase 4, 5 y 6 aún pendientes, vale la pena revisar con el profesor o repriorizar si 5 días alcanzan para las 3 fases restantes entre Ingrid y Willy."
+  - "Verificado 2026-09-30: correr extract_excel.py + clean_excel.py dos veces seguidas produce exactamente los mismos datos (hash idéntico de todas las columnas, excepto _fecha_carga/_lote_id que cambian por diseño). El pipeline hasta Fase 3 es idempotente."
 
 rutas:
   bronze: "data/bronze"

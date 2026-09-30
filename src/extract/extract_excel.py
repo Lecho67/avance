@@ -3,7 +3,8 @@
 El nombre del módulo viene de la plantilla del curso; las tres fuentes en realidad se
 extraen por la API de Socrata (datos.gov.co), no desde Excel. Como respaldo, si la API
 falla tras agotar los reintentos, se busca un archivo descargado a mano en
-data/bronze/manual/<fuente>.csv o data/bronze/manual/<fuente>.xlsx.
+data/bronze/<fuente>.csv o data/bronze/<fuente>.xlsx (mismo nombre que el parquet de
+salida, distinta extensión).
 
 Bronze guarda los datos tal como llegan (todas las columnas de origen como texto; la
 tipificación es trabajo de silver), más las columnas de trazabilidad _fuente_id,
@@ -42,7 +43,6 @@ LIMITE_PAGINA: int = CONFIG["api"]["limite_pagina"]
 REINTENTOS_MAXIMOS: int = CONFIG["api"]["reintentos_maximos"]
 BACKOFF_BASE: float = CONFIG["api"]["backoff_segundos_base"]
 RUTA_BRONZE = Path(CONFIG["rutas"]["bronze"])
-RUTA_MANUAL = RUTA_BRONZE / "manual"
 
 
 def solicitar(url: str, parametros: dict[str, Any] | None = None) -> Any:
@@ -98,9 +98,9 @@ def extraer_paginado(id_fuente: str) -> pd.DataFrame:
 
 
 def leer_respaldo_manual(nombre_fuente: str) -> pd.DataFrame | None:
-    """Lee un archivo descargado a mano (data/bronze/manual/<fuente>.csv|.xlsx) si existe; si no, None."""
-    ruta_csv = RUTA_MANUAL / f"{nombre_fuente}.csv"
-    ruta_xlsx = RUTA_MANUAL / f"{nombre_fuente}.xlsx"
+    """Lee un archivo descargado a mano (data/bronze/<fuente>.csv|.xlsx) si existe; si no, None."""
+    ruta_csv = RUTA_BRONZE / f"{nombre_fuente}.csv"
+    ruta_xlsx = RUTA_BRONZE / f"{nombre_fuente}.xlsx"
     if ruta_csv.exists():
         LOGGER.info("Usando respaldo manual: %s", ruta_csv)
         return pd.read_csv(ruta_csv, dtype=str, encoding="utf-8-sig")
@@ -141,7 +141,7 @@ def extraer_fuente(nombre_fuente: str, id_fuente: str, lote_id: str) -> int:
         df = leer_respaldo_manual(nombre_fuente)
         if df is None:
             raise RuntimeError(
-                f"No se pudo extraer '{nombre_fuente}' por API ni encontrar respaldo manual en {RUTA_MANUAL}"
+                f"No se pudo extraer '{nombre_fuente}' por API ni encontrar respaldo manual en {RUTA_BRONZE}"
             ) from error
         # No se conoce la fecha de corte real de un archivo puesto a mano: se deja en blanco
         # en vez de inventar una (no se asume que está "al día").
