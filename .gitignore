@@ -16,3 +16,6 @@ data/gold/*
 # Logs: se ignoran los contenidos, se conserva el directorio via .gitkeep
 logs/*
 !logs/.gitkeep
+
+# Tablero de Power BI (binario con datos incrustados; se entrega aparte)
+*.pbix
