@@ -396,9 +396,9 @@ dos pruebas para las dos primeras mutaciones que habían sobrevivido).
 - Las horas de `operacion_diaria` no sirven para medir el servicio: el 96 % de los registros declara 4, 5 u 8 horas y el 96 % del tiempo de servicio figura como calculado. Por eso las horas del análisis salen de `prestacion`.
 - El archivo `.pbix` del tablero no se versiona (binario con datos incrustados); la sección 9 explica cómo reconstruirlo. Las capturas de `imagenes/tablero/` salen de su exportación a PDF.
 
-## 12. Equipo
+## 12. Autor
 
-Simon Colonia Amador, Ingrid Valentina y Willy Daniel — Universidad Autónoma de Occidente, Facultad de Ingeniería y Ciencias Básicas.
+Simon Colonia Amador — Universidad Autónoma de Occidente, Facultad de Ingeniería y Ciencias Básicas.
 
 Los datos provienen de [datos.gov.co](https://www.datos.gov.co) (MinEnergía / IPSE y Superservicios) y se usan bajo sus licencias de datos abiertos.
 El código se distribuye bajo licencia MIT (ver [LICENSE](LICENSE)).
