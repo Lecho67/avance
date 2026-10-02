@@ -1,5 +1,23 @@
 # Monitoreo del servicio de energía en ZNI (suroccidente colombiano)
 
+[![Pruebas](https://github.com/Lecho67/avance/actions/workflows/pruebas.yml/badge.svg)](https://github.com/Lecho67/avance/actions/workflows/pruebas.yml)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![Licencia](https://img.shields.io/badge/licencia-MIT-green)
+
+Proyecto de ingeniería de datos de extremo a extremo: **3 APIs abiertas → arquitectura medallón (bronze/silver/gold) → PostgreSQL →
+tablero de Power BI**, con calidad de datos medida, trazabilidad por registro y 220 pruebas automáticas. Responde cuánta energía reciben
+las localidades más aisladas del país y cuánto confiar en los datos que lo dicen.
+Documentación completa: [**Informe final**](INFORME_FINAL.md) · [Cuaderno de análisis](notebooks/01_eda_zni.ipynb) · [Tablero (sección 9)](#9-tablero-de-power-bi).
+
+![Municipios con mayor brecha de horas de servicio](docs/eda/figuras/fig08_brechas_municipios.png)
+
+| | |
+|---|---|
+| **Qué resuelve** | Consolida tres fuentes de datos.gov.co con granularidades y llaves distintas en un modelo analítico único, con las advertencias de frescura incluidas. |
+| **Resultado** | Las localidades reciben en promedio **7,8 de 24 horas diarias** (Cauca y Nariño, menos de 7) y no hay una mejora generalizada desde 2020. |
+| **Decisiones técnicas** | Las llaves se validan con los datos antes de unir; las uniones que no pasan sus pruebas se degradan en lugar de forzarse; los periodos sin datos frescos se marcan, no se descartan; todo es idempotente. |
+| **Stack** | Python, pandas, SQLAlchemy, PostgreSQL, Docker, Matplotlib, pytest, Power BI. |
+
 Pipeline ETL que integra, limpia y estandariza el estado de la prestación del servicio de energía
 eléctrica en las Zonas No Interconectadas (ZNI) de **Valle del Cauca (76), Cauca (19), Nariño (52) y
 Putumayo (86)** a partir de tres conjuntos de datos de [datos.gov.co](https://www.datos.gov.co), y lo
@@ -48,7 +66,7 @@ Luego, para ver los resultados: las tablas quedan en `data/gold` (y en el esquem
 Requiere Python 3.11 o superior (probado con 3.14).
 
 ```powershell
-cd C:\Users\simon\Documents\avance
+cd avance
 
 # Crear y activar el entorno virtual
 python -m venv .venv
@@ -368,3 +386,6 @@ dos pruebas para las dos primeras mutaciones que habían sobrevivido).
 ## 12. Equipo
 
 Simon Colonia Amador, Ingrid Valentina y Willy Daniel — Universidad Autónoma de Occidente, Facultad de Ingeniería y Ciencias Básicas.
+
+Los datos provienen de [datos.gov.co](https://www.datos.gov.co) (MinEnergía / IPSE y Superservicios) y se usan bajo sus licencias de datos abiertos.
+El código se distribuye bajo licencia MIT (ver [LICENSE](LICENSE)).
