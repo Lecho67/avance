@@ -324,6 +324,9 @@ El `% con servicio` se calcula como medida (suma de localidades con servicio ent
 
 ### 9.4 Páginas
 
+**Tema visual:** [`powerbi/tema_zni.json`](powerbi/tema_zni.json) (*Vista → Temas → Buscar temas*). Usa los mismos colores por departamento
+que las figuras del EDA (Cauca azul, Nariño naranja, Putumayo ámbar, Valle del Cauca aqua), fondo gris claro y visuales en tarjetas blancas.
+
 | Página | Qué muestra | Tablas |
 |---|---|---|
 | 1. Estado actual | Selector de mes (por defecto 2026-01); tarjetas de horas promedio, localidades con servicio, energía y `% con servicio` (región); barras de horas por departamento | `ind_evolucion_mensual`, `ind_horas_servicio_departamento` |
