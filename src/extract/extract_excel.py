@@ -33,7 +33,12 @@ _RAIZ_PROYECTO = Path(__file__).resolve().parent.parent.parent
 if str(_RAIZ_PROYECTO) not in sys.path:
     sys.path.insert(0, str(_RAIZ_PROYECTO))
 
-from src import cargar_configuracion, obtener_logger, obtener_token_socrata  # noqa: E402
+from src import (  # noqa: E402
+    cargar_configuracion,
+    obtener_logger,
+    obtener_token_socrata,
+    registrar_error_controlado,
+)
 
 CONFIG = cargar_configuracion()
 LOGGER = obtener_logger("extract_excel", "extract.log")
@@ -156,6 +161,26 @@ def extraer_fuente(nombre_fuente: str, id_fuente: str, lote_id: str) -> int:
     return len(df)
 
 
+def extraer_todas(fuentes: list[str] | None = None) -> tuple[dict[str, int], list[str]]:
+    """Extrae las fuentes indicadas (o las tres) hacia bronze con un mismo lote_id.
+
+    Un fallo en una fuente se registra como error controlado y no detiene a las demás.
+    Devuelve ({fuente: filas}, [fuentes fallidas]).
+    """
+    lote_id = generar_lote_id()
+    LOGGER.info("Iniciando extracción. lote_id=%s", lote_id)
+    resultados: dict[str, int] = {}
+    fallidas: list[str] = []
+    for nombre in fuentes or list(CONFIG["fuentes"]):
+        try:
+            resultados[nombre] = extraer_fuente(nombre, CONFIG["fuentes"][nombre]["id"], lote_id)
+        except Exception as error:  # noqa: BLE001 - se captura para no tumbar el pipeline
+            fallidas.append(nombre)
+            registrar_error_controlado("extract", f"{nombre}: {error}")
+            LOGGER.exception("Error extrayendo '%s'", nombre)
+    return resultados, fallidas
+
+
 def main() -> None:
     """Punto de entrada de línea de comandos: extrae una fuente o las tres hacia bronze."""
     parser = argparse.ArgumentParser(description="Extracción Socrata hacia la capa bronze.")
@@ -165,25 +190,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    lote_id = generar_lote_id()
-    LOGGER.info("Iniciando extracción. lote_id=%s", lote_id)
-
-    fuentes = (
-        {args.fuente: CONFIG["fuentes"][args.fuente]["id"]}
-        if args.fuente
-        else {nombre: datos["id"] for nombre, datos in CONFIG["fuentes"].items()}
-    )
-
-    errores = 0
-    for nombre, id_fuente in fuentes.items():
-        try:
-            extraer_fuente(nombre, id_fuente, lote_id)
-        except Exception:
-            errores += 1
-            LOGGER.exception("Error extrayendo '%s'", nombre)
-
-    if errores:
-        LOGGER.error("Extracción completa con %s fuente(s) fallida(s).", errores)
+    _, fallidas = extraer_todas([args.fuente] if args.fuente else None)
+    if fallidas:
+        LOGGER.error("Extracción completa con %s fuente(s) fallida(s): %s", len(fallidas), fallidas)
         sys.exit(1)
     LOGGER.info("Extracción completa sin errores.")
 

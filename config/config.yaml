@@ -1,10 +1,10 @@
 # Configuración central del pipeline ETL
 # Proyecto: Monitoreo del servicio de energía en ZNI (suroccidente colombiano)
 #
-# Completado con los resultados reales del perfilado (Fase 1, ejecutada 2026-09-30).
-# Ver logs/perfilado/*.csv para el detalle completo (columnas, muestras, formatos DANE,
-# llaves, cruces). Los campos aquí son nombres reales confirmados contra la API, no
-# heurísticas.
+# Los campos de esta configuración son nombres reales confirmados contra la API de
+# Socrata (perfilado de la Fase 1, ver logs/perfilado/*.csv), no heurísticas. Las
+# decisiones que se apartan del documento de diseño están en las secciones `notas` y
+# `decisiones_de_diseno` al final de este archivo, con la evidencia que las respalda.
 
 fuentes:
   prestacion:
@@ -14,66 +14,79 @@ fuentes:
     sistema: "Socrata (datos.gov.co)"
     granularidad: "localidad x mes"
     frecuencia_nominal_meses: 1
-    fecha_corte_documentada: "2026-01"              # según el documento de diseño
-    fecha_corte_real_rows_updated_at: "2026-03-13"  # confirmado en el perfilado; NO coincide con ene-2026
+    actualizacion_nominal: "activa"
+    # Dos fechas distintas (no son una discrepancia del documento):
+    #  - ultimo_periodo_datos: último mes con datos en la fuente (ene-2026, como dice el diseño).
+    #  - fecha_actualizacion_portal: cuándo se tocó por última vez el dataset (rowsUpdatedAt).
+    fecha_corte_documentada: "2026-01"
+    ultimo_periodo_datos_perfilado: "2026-01"
+    fecha_actualizacion_portal_perfilado: "2026-03-13"
     filas_totales_perfilado: 6216
     rol: "base del modelo (tabla de hechos de prestación)"
-    campos_llave: ["id_localidad", "anio", "mes"]
+    # La llave real incluye el nombre normalizado: un mismo id_localidad DANE agrupa varias
+    # localidades con nombre distinto (15 de 73 códigos). Con el nombre la llave es 100% única.
+    campos_llave: ["id_localidad", "localidad_nombre_normalizado", "anio", "mes"]
     campos_geograficos: ["id_dpto", "id_mpio", "id_localidad"]  # dpto/mpio/localidad (sin id_) son NOMBRES, no usar para unir
     campos_criticos: ["id_localidad", "anio", "mes", "energia_activa", "energia_reactiva", "prom_diario_horas"]
     campo_horas_servicio: "prom_diario_horas"
-    duplicados_llave_pct_nacional_perfilado: 3.28  # perfilado (Fase 1), dato nacional sin filtrar por departamento
-    duplicados_llave_pct_silver: 4.6  # medido en silver (Fase 3) YA filtrado a los 4 departamentos: 35 grupos, 107 de 2327 filas
     notas:
-      - "id_dpto/id_mpio/id_localidad llegan como texto pero SIN ceros a la izquierda (ej. '5873' en vez de '05873'); normalizado con zfill(2/5/8) en silver (Fase 3), validado al 100% con probar_validez_dane."
-      - "Duplicados de id_localidad+anio+mes revisados a mano (Fase 3): las filas NO son copias exactas, tienen energia_activa/prom_diario_horas distintos entre sí (ver ejemplo en el commit de Fase 3). clean_excel.py NO las colapsa ni inventa una regla de agregación; quedan las N filas tal cual, con probar_unicidad_llave reportando aprobado=False a propósito. Fase 4 (gold) debe decidir cómo combinarlas (¿sumar energía por ser plantas/mediciones distintas en la misma localidad? ¿son revisiones del reporte?) antes de construir fact_prestacion."
+      - "id_dpto/id_mpio/id_localidad llegan como texto pero SIN ceros a la izquierda (ej. '5873' en vez de '05873'); se normalizan con zfill(2/5/8) en silver."
+      - "Una fila tiene id_dpto='00' aunque su municipio es de Cauca: silver repara id_dpto como el prefijo de 2 dígitos de id_mpio (regla dane_departamento_corregido)."
+      - "id_localidad NO es único por localidad física: 15 de los 73 códigos agrupan localidades con nombre distinto (ej. 19318008 = LIMONES y SAN ANTONIO DE GUAJUI). Se verificó que no son duplicados: los valores de energía difieren. La entidad analítica es (id_localidad, nombre normalizado)."
+      - "CAMBIO DE FORMATO EN LA FUENTE (2025-12 y 2026-01): prom_diario_horas viene multiplicado por 100 (776 = 7.76 h, 2400 = 24.00 h) y potencia_maxima en una escala inconsistente (÷1000 en unas localidades, ÷10000 en otras). Evidencia: 70 de las 71 filas de esos dos meses. Las horas se reescalan (validado con la energía: 99% de las filas queda entre 0.5x y 2x de la potencia media histórica de su localidad); la potencia se excluye porque no se puede corregir de forma fiable. Ver sección plausibilidad."
 
   operacion_diaria:
     id: "qwe5-ycap"
     nombre: "Registro de Operación Diario ZNI"
     dueno: "Superintendencia de Servicios Públicos (Superservicios)"
     sistema: "Socrata (datos.gov.co)"
-    granularidad: "localidad x dia x generador (serie_generador); agregar para llegar a localidad-dia"
+    granularidad: "localidad x dia x generador (serie_generador)"
     frecuencia_nominal_meses: 6
+    actualizacion_nominal: "congelada"
     fecha_corte_documentada: "2023-06"
-    fecha_corte_real_rows_updated_at: "2023-06-01"  # coincide con lo documentado (fuente congelada)
+    # Ojo: el portal dice jun-2023 pero los DATOS terminan antes (4 departamentos: 2022-03;
+    # nacional: 2022-05). La comparabilidad usa la cobertura observada, no la fecha del portal.
+    ultimo_periodo_datos_perfilado: "2022-03"
+    fecha_actualizacion_portal_perfilado: "2023-06-01"
     filas_totales_perfilado: 455207
-    rol: "relación operador-localidad (vigente hasta 2023-06)"
-    campos_llave: ["codigo_localidad", "fecha"]
+    rol: "relación operador-localidad (vigencia observada 2021-07 a 2022-03)"
+    campos_llave: ["codigo_localidad", "fecha", "serie_generador"]
     campos_geograficos: ["codigo_localidad"]  # dane_nom_dpto/dane_nom_mpio/dane_nom_poblad son NOMBRES, no usar para unir
     campos_criticos: ["codigo_localidad", "fecha", "energia_generada", "identificador_empresa"]
     campo_identificador_empresa: "identificador_empresa"
-    duplicados_llave_pct_nacional_perfilado: 4.01  # perfilado (Fase 1), dato nacional sin filtrar por departamento
-    duplicados_llave_pct_silver: 0.69  # medido en silver (Fase 3) ya filtrado: 826 grupos, 1740 de 250386 filas
     notas:
-      - "codigo_localidad tiene 12-13 dígitos, NO 8: no es el mismo esquema que id_localidad de prestacion (0% de cruce directo)."
-      - "HALLAZGO: reducido a los primeros 5 dígitos sí cruza bien contra id_mpio/id_localidad de prestacion (100%/87.5%). La unión con prestacion se implementa a nivel de MUNICIPIO+mes, no de localidad+mes como decía el documento original."
-      - "codigo_localidad+fecha no es 100% único porque puede haber varios generadores (serie_generador) reportando el mismo día en la misma localidad: NO son duplicados a eliminar, son filas legítimas que Fase 4 debe sumar (energia_generada) al agregar a mensual."
+      - "codigo_localidad tiene 13 dígitos = municipio (5) + centro poblado DIVIPOLA (3) + consecutivo interno (5). NO es el id_localidad de 8 dígitos de prestacion."
+      - "Regla de enlace validada: si el centro poblado (dígitos 6-8) es distinto de '000', los primeros 8 dígitos son el id_localidad de prestacion. Se validó contra los nombres (solo como verificación, no para unir): 38 de 38 pares coinciden. Con '000' el código no identifica la localidad (ej. CECILIA COCHA, PUERTO REFUGIO y PUNTALES comparten 86573000) y solo se relaciona a nivel de municipio."
+      - "La llave (codigo_localidad, fecha) no es única porque hay varios generadores por localidad-día; con serie_generador sí es única (0 duplicados)."
+      - "Cobertura observada en los 4 departamentos: 2021-07 a 2022-03 (9 meses contiguos); solo 196 de 2327 filas de prestacion (8%) son enlazables con operador por código y mes."
 
   pqr:
     id: "5wua-nr2d"
     nombre: "Reclamaciones y Quejas - Informe PQR"
     dueno: "Superintendencia de Servicios Públicos (Superservicios)"
     sistema: "Socrata (datos.gov.co)"
-    granularidad: "una fila por caso/radicado (rad_recibido); se agrega a municipio-semestre-empresa antes de unir"
+    granularidad: "una fila por caso/radicado; se agrega a municipio-semestre-empresa antes de unir"
     frecuencia_nominal_meses: 6
+    actualizacion_nominal: "congelada"
     fecha_corte_documentada: "2024-03"
-    fecha_corte_real_rows_updated_at: "2024-03-06"  # coincide con lo documentado (fuente congelada)
+    # Igual que operacion_diaria: el portal dice mar-2024 pero los datos terminan en 2023-06.
+    ultimo_periodo_datos_perfilado: "2023-06"
+    fecha_actualizacion_portal_perfilado: "2024-03-06"
     filas_totales_perfilado: 25273
-    rol: "tabla de hechos de PQR (contexto general de servicios públicos; ver notas)"
-    campos_llave: ["car_t1554_dane_depto", "car_t1554_dane_mpio", "identificador_empresa", "car_carg_ano", "car_carg_periodo"]
-    campos_geograficos: ["car_t1554_dane_depto", "car_t1554_dane_mpio"]  # el municipio real = concatenar ambos, ver notas
-    campos_periodo: ["car_carg_ano", "car_carg_periodo"]  # car_carg_periodo es MES (1-12), no semestre: derivar semestre en Fase 3
+    rol: "tabla de hechos de PQR (contexto municipal de servicios públicos; ver notas)"
+    campos_llave: ["id_mpio", "car_carg_ano", "semestre", "identificador_empresa"]  # llave AGREGADA; las filas crudas son casos individuales
+    llave_es_agregada: true  # en silver la unicidad de esta llave no se exige (se reporta solo como información)
+    campos_geograficos: ["car_t1554_dane_depto", "car_t1554_dane_mpio"]  # el municipio real = concatenar ambos
+    campos_periodo: ["car_carg_ano", "car_carg_periodo"]
     campos_criticos: ["car_t1554_dane_depto", "car_t1554_dane_mpio", "car_carg_ano", "car_carg_periodo", "rad_recibido"]
     campo_identificador_empresa: "identificador_empresa"
-    duplicados_llave_pct_nacional_perfilado: 87.76  # perfilado (Fase 1), dato nacional sin filtrar por departamento
-    duplicados_llave_pct_silver: 92.12  # medido en silver (Fase 3) ya filtrado: 597 grupos, 8551 de 9282 filas. Esperado: la llave agregada (municipio-empresa-año-periodo) colapsa muchos casos individuales, no es un defecto.
     notas:
-      - "HALLAZGO CRÍTICO (decisión 2026-09-30): are_esp_nombre (empresa reclamada) son todas distribuidoras de GAS, no operadores eléctricos de ZNI. identificador_empresa cruza en 0% contra operacion_diaria (76 vs 59 valores distintos, intersección vacía)."
-      - "Decisión: se mantiene la fuente (es la que cita el documento de diseño) pero la unión con operacion_diaria se limita a municipio, sin usar identificador_empresa: la propia regla de respaldo del diseño ('si no hay identificador común, la unión se limita al municipio') ya contemplaba este caso."
-      - "car_t1554_dane_mpio NO trae el prefijo de departamento (ej. '895' para Zapatoca, Santander = 68895 completo). El código de municipio real se arma con car_t1554_dane_depto (2 dígitos, zfill) + car_t1554_dane_mpio (3 dígitos, zfill)."
-      - "car_carg_periodo toma valores 1-12 (mes de carga), no semestre 1-2: el semestre se deriva (ene-jun=1, jul-dic=2) en Fase 3."
-      - "rad_recibido muestra valores anormalmente largos con el prefijo repetido dentro del mismo string (posible artefacto de exportación de Socrata); no usarlo como llave única sin limpiarlo primero."
+      - "HALLAZGO CRÍTICO (decisión 2026-09-30): are_esp_nombre (empresa reclamada) son distribuidoras de GAS, no operadores eléctricos de ZNI. identificador_empresa cruza en 0% contra operacion_diaria (76 vs 59 valores distintos, intersección vacía)."
+      - "Decisión: se mantiene la fuente (la cita el documento de diseño) pero la unión con operacion_diaria se limita a municipio, sin usar identificador_empresa: la regla de respaldo del diseño ('si no hay identificador común, la unión se limita al municipio') ya contemplaba este caso. Los conteos de PQR son un contexto municipal de quejas de servicios públicos, NO quejas del servicio de energía."
+      - "car_t1554_dane_mpio NO trae el prefijo de departamento (ej. '895' para Zapatoca, Santander = 68895). El municipio real se arma con car_t1554_dane_depto (2 dígitos) + car_t1554_dane_mpio (3 dígitos)."
+      - "car_carg_periodo toma valores 1-12 (mes de carga), no semestre 1-2: el semestre se deriva (ene-jun=1, jul-dic=2)."
+      - "Cobertura observada: meses 2021-07 a 2022-06 y 2023-01 a 2023-06. El semestre 2022-2 NO tiene datos en ninguna fuente de la región."
+      - "rad_recibido muestra valores anormalmente largos con el prefijo repetido dentro del mismo string (posible artefacto de exportación); no se usa como llave. Cada fila se cuenta como un caso."
 
 geografia:
   # Filtro por los 2 primeros dígitos del código DANE de municipio
@@ -82,48 +95,150 @@ geografia:
     cauca: "19"
     narino: "52"
     putumayo: "86"
+  nombres_departamento:
+    "76": "VALLE DEL CAUCA"
+    "19": "CAUCA"
+    "52": "NARIÑO"
+    "86": "PUTUMAYO"
 
 codigos_dane:
   longitud_departamento: 2
   longitud_municipio: 5
-  # No existe una longitud única de "código de localidad": prestacion usa 8 dígitos
-  # (depto 2 + mpio 3 + consecutivo 3), operacion_diaria usa 12-13 (esquema propio, no
-  # DIVIPOLA estándar). Ambos comparten el prefijo de municipio de 5 dígitos, que es el
-  # nivel real en el que se pueden unir (ver notas de operacion_diaria arriba).
+  longitud_localidad: 8            # id_localidad de prestacion (DIVIPOLA centro poblado)
+  longitud_codigo_operacion: 13    # codigo_localidad de operacion_diaria (municipio 5 + centro poblado 3 + consecutivo 5)
+  centro_poblado_sin_codigo: "000" # marca de "sin código DIVIPOLA de centro poblado" en codigo_localidad
 
 umbrales_calidad:
   dane_valido_pct_minimo: 95
   duplicados_pct_maximo: 1
   campos_criticos_completos_pct_minimo: 98
-  identificador_empresa_comun_pct_minimo: 95  # no se alcanza entre operacion_diaria y pqr (0%); es un resultado esperado y documentado, no bloquea el pipeline (ver notas de pqr)
+  identificador_empresa_comun_pct_minimo: 95  # no se alcanza entre operacion_diaria y pqr (0%); resultado esperado y documentado, ver notas de pqr
+
+# Valores imposibles detectados en prestacion (ver notas de prestacion).
+#  - Horas: con reescalar=true un valor > 24 cuyo valor/100 cae en 0-24 se divide entre 100; se marca
+#    por fila y se registra en reglas_aplicadas. Validado con una variable independiente (energía):
+#    con el factor, la potencia media implícita queda en 1.01x de la histórica de cada localidad
+#    (99% de las filas entre 0.5x y 2x); sin él queda en 0.01x. Con reescalar=false se excluyen.
+#  - Potencia: NO se reescala. En las filas con cambio de formato la escala es inconsistente (÷1000
+#    en unas localidades, ÷10000 en otras: solo 37% cae en rango con cualquiera de los dos), así que
+#    no se puede corregir de forma fiable y se excluye (queda nula y marcada potencia_invalida).
+plausibilidad:
+  reescalar_valores_fuera_de_rango: true
+  horas_servicio_max_dia: 24              # un promedio DIARIO no puede pasar de 24 horas
+  factor_reescala_horas: 100              # 776 -> 7.76
+  potencia_maxima_max_plausible: 10000    # el máximo observado antes de 2025 es 3229; p99.9 = 2155
 
 frescura:
   vigente_max_periodos_retraso: 2
-  # Desactualizada: más de 2 periodos de retraso frente a la frecuencia nominal
-  # Congelada: fuente sin actualización nominal (fecha_corte_real_rows_updated_at arriba)
+  # Zona horaria con la que se decide el DÍA de la fecha de referencia (la de la carga a bronze).
+  # _fecha_carga se guarda en UTC; sin esta conversión una corrida a las 8 p. m. en Colombia
+  # quedaría fechada al día siguiente.
+  zona_horaria_referencia: "America/Bogota"
+  # vigente: hasta 2 periodos de retraso frente a la frecuencia nominal de la fuente
+  # desactualizada: más de 2 periodos de retraso (fuente con actualización nominal activa)
+  # congelada: fuente sin actualización nominal (actualizacion_nominal = congelada)
+  # El retraso se mide desde el último mes con datos hasta el mes de la carga (bronze).
+
+# Parámetros del análisis exploratorio (src/eda): umbrales que deciden qué observaciones entran a cada
+# figura. Cambiarlos no altera gold; solo cambia lo que muestran las figuras y las tablas de docs/eda.
+eda:
+  dpi: 150
+  # "Antes -> después": cada localidad se compara consigo misma entre dos ventanas de años. Comparar promedios
+  # anuales de toda la región mezcla cambios reales con cambios de QUÉ localidades reportan (entre 14 y 44 por
+  # mes). Solo entran localidades con al menos `observaciones_minimas_ventana` meses reportados en AMBAS ventanas.
+  ventana_inicial: [2020, 2021]
+  ventana_final: [2024, 2025]
+  observaciones_minimas_ventana: 6
+  # Un cambio de hasta ±este valor (horas) se considera "se mantiene".
+  umbral_cambio_horas: 0.5
+  # Estacionalidad: una localidad-año entra solo si reportó al menos estos meses de ese año.
+  meses_minimos_localidad_anio: 6
+  # Ranking de localidades con menos horas: una localidad con 1 o 2 meses reportados no es evidencia suficiente.
+  meses_minimos_ranking_localidad: 3
+  # Municipios con menos observaciones localidad-mes que este umbral se muestran, pero marcados como evidencia baja.
+  observaciones_minimas_evidencia: 12
+  # Ventana del "estado reciente": los últimos N meses con datos en prestacion.
+  ventana_estado_reciente_meses: 12
+  # Intervalos de confianza del 95 % por remuestreo de localidades (bootstrap por conglomerado).
+  remuestreos_bootstrap: 2000
+  semilla: 2026
+  # Carpeta (dentro de docs/eda) de las figuras y las tablas de apoyo.
+  figuras_subcarpeta: "figuras"
+  tablas_subcarpeta: "tablas"
+  # Figuras que se usan en la presentación: se generan además en "modo diapositiva" (sin título ni pie, lienzo
+  # más angosto) en docs/presentacion/figuras con `python src/eda/run_eda.py --diapositivas`.
+  figuras_diapositiva:
+    - fig01_frescura_fuentes
+    - fig02_cobertura_mensual
+    - fig04_distribucion_horas
+    - fig07_estado_departamentos
+    - fig08_brechas_municipios
+    - fig09_evolucion_departamentos
+    - fig10_cambio_localidades
+    - fig11_estacionalidad
+    - fig12_operadores
+    - fig13_pqr
+    - fig14_peor_desempeno
+    - fig15_localidades_menos_horas
+    - fig16_operacion_diaria
 
 uniones:
   prestacion_operacion_diaria:
-    nivel: "municipio + mes"  # AJUSTADO: no localidad + mes (ver hallazgo en operacion_diaria)
-    tipo: "left join desde prestacion (agregada de localidad a municipio); operacion_diaria agregada de diario/generador a mensual por municipio"
-    vigente_hasta: "2023-06"
+    nivel: "localidad (prefijo DIVIPOLA de codigo_localidad) + mes"
+    tipo: "left join desde prestacion; operacion_diaria se agrega de día/generador a mes por localidad enlazada. Si una localidad no es enlazable por código, queda sin operador (no se asigna por municipio)."
     despues_de_vigencia: "sin dato vigente"
   prestacion_pqr:
     nivel: "municipio + semestre"
-    tipo: "left join desde prestacion (mes -> semestre, localidad -> municipio); pqr se agrega por municipio-semestre (depto+mpio compuestos, car_carg_ano/periodo -> semestre) antes de unir"
-    vigente_hasta: "2024-03"
+    tipo: "left join desde prestacion (mes -> semestre, localidad -> municipio); pqr se agrega por municipio-semestre-empresa antes de unir"
   operacion_diaria_pqr:
-    nivel: "municipio"  # AJUSTADO: sin identificador_empresa (cruce real 0%, ver hallazgo en pqr)
-    tipo: "left join desde el par operador-municipio hacia pqr agregada por municipio-semestre"
+    nivel: "municipio"  # AJUSTADO: sin identificador_empresa (cruce real 0%, ver notas de pqr)
+    tipo: "la relación se limita al municipio: ambas tablas comparten id_municipio en gold"
 
-notas_para_fase_4_gold:
-  - "puente_operador_localidad (sección 3 del diseño) solo puede tener precisión de MUNICIPIO, no de localidad individual, con los datos reales: documentarlo así en el modelo gold (considerar renombrar a puente_operador_municipio, o dejar el nombre y aclarar la granularidad real en su descripción)."
-  - "La pregunta 4 del MVP ('qué operador presta el servicio en cada localidad') solo se puede responder a nivel de municipio."
-  - "PENDIENTE (sección 2 del prompt, no implementado en silver a propósito: es lógica de unión/gold): cada registro gold debe llevar fecha_corte_fuente, estado_frescura (vigente/desactualizada/congelada, usando frescura.vigente_max_periodos_retraso y fecha_corte_real_rows_updated_at/frecuencia_nominal_meses de cada fuente arriba) y es_comparable. Los periodos no comparables se marcan, no se descartan."
-  - "PENDIENTE (sección 5 del prompt): generar data/gold/kpis_pipeline.csv con % fuentes integradas, % variables estandarizadas, % registros duplicados, % registros con trazabilidad, % campos críticos completos, número de errores de transformación, % reglas de negocio documentadas, % información reproducible. Varias de estas métricas ya se pueden calcular con quality_checks.py sobre silver; las que dependen de las uniones (p. ej. % fuentes integradas) solo se conocen una vez construido gold."
-  - "Antes de construir cada unión, correr las 5 pruebas de quality_checks.py y documentar el resultado (aprobado o no) como pide la sección 5: 'ninguna unión se construye si no pasa las pruebas de calidad'. identificador_empresa_comun ya se sabe que da aprobado=False (0%, ver notas de pqr arriba) — es el resultado esperado, no hay que perseguir un 95% ahí."
-  - "RIESGO DE CALENDARIO: hoy es 2026-09-30. La meta 'fuentes integradas' es 5-oct-2026 (KR1), pero integradas en el sentido del OKR implica gold + carga a PostgreSQL, no solo bronze/silver. Con Fase 4, 5 y 6 aún pendientes, vale la pena revisar con el profesor o repriorizar si 5 días alcanzan para las 3 fases restantes entre Ingrid y Willy."
-  - "Verificado 2026-09-30: correr extract_excel.py + clean_excel.py dos veces seguidas produce exactamente los mismos datos (hash idéntico de todas las columnas, excepto _fecha_carga/_lote_id que cambian por diseño). El pipeline hasta Fase 3 es idempotente."
+# Registro de reglas de negocio/calidad. El KPI "% de reglas de negocio documentadas" compara
+# las reglas que el pipeline realmente escribe en reglas_aplicadas contra este registro.
+reglas_negocio:
+  tipificacion_columnas: {capa: silver, descripcion: "Las columnas numéricas y de fecha de bronze (texto) se convierten a su tipo real."}
+  filtro_departamentos_alcance: {capa: silver, descripcion: "Se conservan solo los registros cuyo código de municipio empieza por 76, 19, 52 u 86."}
+  deduplicacion_exacta: {capa: silver, descripcion: "Se eliminan las filas idénticas en todas las columnas de origen; las que solo comparten llave se conservan."}
+  dane_normalizado: {capa: silver, descripcion: "Código DANE rellenado con ceros a la izquierda hasta su longitud (departamento 2, municipio 5, localidad 8)."}
+  dane_departamento_corregido: {capa: silver, descripcion: "id_dpto inconsistente con id_mpio (ej. '00') se reemplaza por el prefijo de 2 dígitos del municipio."}
+  localidad_nombre_normalizado: {capa: silver, descripcion: "Nombre de localidad sin el sufijo '(MUNICIPIO - DEPARTAMENTO)', sin tildes, en mayúsculas y sin puntuación; parte de la llave de la entidad localidad."}
+  municipio_derivado_de_codigo_localidad: {capa: silver, descripcion: "id_mpio de operacion_diaria = primeros 5 dígitos de codigo_localidad."}
+  municipio_compuesto_depto_mpio: {capa: silver, descripcion: "id_mpio de pqr = car_t1554_dane_depto (2 dígitos) + car_t1554_dane_mpio (3 dígitos)."}
+  semestre_derivado_de_mes_carga: {capa: silver, descripcion: "semestre de pqr = 1 si car_carg_periodo (mes) está entre 1 y 6, 2 si está entre 7 y 12."}
+  localidad_entidad_codigo_y_nombre: {capa: gold, descripcion: "La localidad analítica es el par (id_localidad, nombre normalizado) porque un código DANE puede agrupar localidades con nombre distinto."}
+  horas_reescaladas_x100: {capa: gold, descripcion: "prom_diario_horas mayor a 24 cuyo valor/100 cae en 0-24 se divide entre 100 (formato de la fuente en 2025-12 y 2026-01) y se marca."}
+  horas_invalidas_excluidas: {capa: gold, descripcion: "prom_diario_horas fuera de 0-24 que no se puede reescalar queda nulo y se excluye de los promedios."}
+  potencia_invalida_excluida: {capa: gold, descripcion: "potencia_maxima mayor al máximo plausible, o de una fila con cambio de formato (horas fuera de rango), queda nula y se excluye de las agregaciones: su escala es inconsistente y no se puede reescalar de forma fiable."}
+  con_servicio_por_energia_activa: {capa: gold, descripcion: "Una localidad tiene servicio en un mes si su energia_activa es mayor a cero."}
+  enlace_localidad_por_prefijo_divipola: {capa: gold, descripcion: "codigo_localidad de 13 dígitos se enlaza con id_localidad de prestacion por sus primeros 8 dígitos solo si el centro poblado (dígitos 6-8) no es '000'."}
+  operador_principal_por_energia_generada: {capa: gold, descripcion: "Si una localidad-mes tiene más de un operador, se asigna el de mayor energia_generada (empate: menor identificador)."}
+  vigencia_operador_observada: {capa: gold, descripcion: "La vigencia de una relación operador-localidad es el rango de fechas en que aparece en operacion_diaria, no la fecha del portal."}
+  agregacion_pqr_municipio_semestre_empresa: {capa: gold, descripcion: "Los casos de pqr se cuentan por municipio, año, semestre y empresa antes de cualquier unión."}
+  semestre_desde_mes: {capa: gold, descripcion: "Cada mes de prestacion se asigna a su semestre (ene-jun = 1, jul-dic = 2) antes de unirse con PQR."}
+  frescura_por_fuente: {capa: gold, descripcion: "estado_frescura = vigente / desactualizada / congelada según el retraso del último mes con datos frente a la frecuencia nominal y la actualización nominal de la fuente."}
+  comparabilidad_por_cobertura_observada: {capa: gold, descripcion: "es_comparable es verdadero solo si el periodo está dentro de la cobertura observada de todas las fuentes que intervienen; los periodos no comparables se marcan, no se descartan."}
+  union_prestacion_operador_nivel_localidad: {capa: gold, descripcion: "Left join desde prestacion hacia operacion_diaria agregada a localidad-mes, solo para localidades enlazables por código y meses con cobertura."}
+  union_prestacion_pqr_nivel_municipio_semestre: {capa: gold, descripcion: "Left join desde prestacion agregada a municipio-semestre hacia pqr agregada; la PQR nunca se asigna a una localidad."}
+  union_operador_pqr_solo_municipio: {capa: gold, descripcion: "La unión operador-PQR por identificador de empresa no se implementa (0% de coincidencia); la relación se limita al municipio."}
+  brecha_horas_respecto_a_24: {capa: gold, descripcion: "brecha_horas = 24 menos las horas promedio diarias de servicio; una brecha mayor es peor desempeño."}
+  ranking_peor_desempeno_combinado: {capa: gold, descripcion: "puntaje_combinado = promedio del percentil de la brecha de horas y del percentil de casos PQR del municipio en los semestres comparables; ranking 1 = peor."}
+
+kpis_metas:
+  pct_fuentes_integradas: 100
+  pct_variables_estandarizadas: 100
+  pct_registros_con_trazabilidad: 100
+  errores_transformacion_max: 0
+  pct_reglas_negocio_documentadas: 100
+  pct_informacion_reproducible: 100
+  # pct_registros_duplicados (<=) y pct_campos_criticos_completos (>=) usan umbrales_calidad
+
+decisiones_de_diseno:
+  - "puente_operador_localidad conserva el nombre del diseño pero su enlace con dim_localidad existe solo para las localidades cuyo codigo_localidad trae centro poblado DIVIPOLA; el resto queda relacionado únicamente por municipio (columna nivel_enlace)."
+  - "La pregunta 4 del MVP (operador por localidad y horas por operador) solo es respondible para las localidades enlazables y los 9 meses con cobertura de operador (2021-07 a 2022-03)."
+  - "Las PQR son de distribuidoras de gas: se usan como contexto municipal; el indicador combinado de peor desempeño lo dice explícitamente en su documentación."
+  - "es_comparable, estado_frescura y fecha_corte_fuente viajan en cada registro gold; los periodos no comparables se marcan, no se descartan."
+  - "Los DANE se comparan por código; los nombres solo se usan para identificar la entidad localidad dentro de prestacion y para mostrar, nunca para unir entre fuentes."
 
 rutas:
   bronze: "data/bronze"
@@ -131,6 +246,8 @@ rutas:
   gold: "data/gold"
   logs: "logs"
   logs_perfilado: "logs/perfilado"
+  eda: "docs/eda"                 # figuras (PNG), tablas de apoyo (CSV) y hallazgos.json del análisis exploratorio
+  presentacion: "docs/presentacion"  # figuras en modo diapositiva y guion de la presentación
 
 api:
   base_url: "https://www.datos.gov.co"

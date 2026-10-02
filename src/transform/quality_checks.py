@@ -166,34 +166,83 @@ def probar_identificador_empresa_comun(valores_a: pd.Series, valores_b: pd.Serie
     )
 
 
-if __name__ == "__main__":
-    # Autodiagnóstico rápido: corre las pruebas que no requieren cruces entre fuentes
-    # contra la capa silver actual y muestra un resumen. Para las pruebas de cruce y de
-    # identificador de empresa común (que comparan dos fuentes), ver Fase 4 (gold), que
-    # es donde se decide qué uniones se implementan según estos resultados.
-    RUTA_SILVER = Path(CONFIG["rutas"]["silver"])
-    # Solo se listan aquí los campos que, tras la limpieza de Fase 3, SÍ son códigos DANE
-    # de longitud fija y estándar. codigo_localidad (operacion_diaria) usa un esquema de
-    # 12-13 dígitos propio de la fuente (no 5 ni 8: ver config.yaml) y car_t1554_dane_mpio
-    # (pqr) es solo el consecutivo de 3 dígitos DENTRO del departamento, no el código de
-    # municipio completo (ese es id_mpio, ya compuesto): por eso no se validan sueltos aquí.
-    CAMPOS_DANE_ESTANDAR = {
-        "prestacion": [("id_dpto", 2), ("id_mpio", 5), ("id_localidad", 8)],
-        "operacion_diaria": [("id_mpio", 5)],
-        "pqr": [("id_mpio", 5)],
-    }
-    print("Autodiagnóstico de quality_checks.py contra data/silver/*.parquet\n")
-    for nombre, datos_fuente in CONFIG["fuentes"].items():
-        ruta = RUTA_SILVER / f"{nombre}.parquet"
-        if not ruta.exists():
-            print(f"[{nombre}] silver no encontrado en {ruta}; corre clean_excel.py primero.")
-            continue
-        df = pd.read_parquet(ruta)
-        resultado_llave = probar_unicidad_llave(df, datos_fuente["campos_llave"])
-        print(f"[{nombre}] unicidad_llave: {resultado_llave.metrica}% duplicadas, aprobado={resultado_llave.aprobado} {resultado_llave.detalle}")
+def probar_campos_criticos_completos(df: pd.DataFrame, columnas: list[str]) -> ResultadoCalidad:
+    """Campos críticos completos (KR2): % de REGISTROS que tienen presentes todos sus campos
+    críticos. Aprueba si alcanza el umbral `campos_criticos_completos_pct_minimo` (98%).
+
+    Es por registro (no por celda) para ser consistente con los otros indicadores de KR2: un
+    registro al que le falta un solo campo crítico cuenta como incompleto.
+    """
+    umbral = CONFIG["umbrales_calidad"]["campos_criticos_completos_pct_minimo"]
+    faltantes = [c for c in columnas if c not in df.columns]
+    if faltantes or df.empty:
+        return ResultadoCalidad(
+            "campos_criticos_completos", 0.0, False,
+            {"motivo": "columnas inexistentes o tabla vacía", "columnas_faltantes": faltantes},
+        )
+    no_nulos = df[columnas].notna()
+    registros_completos = no_nulos.all(axis=1)
+    pct = round(100 * float(registros_completos.mean()), 2)
+    return ResultadoCalidad(
+        nombre_prueba="campos_criticos_completos",
+        metrica=pct,
+        aprobado=(pct >= umbral),
+        detalle={
+            "umbral_minimo": umbral,
+            "registros_evaluados": int(len(df)),
+            "registros_completos": int(registros_completos.sum()),
+            "pct_celdas_completas": round(100 * float(no_nulos.to_numpy().mean()), 2),
+            "por_columna": {c: round(100 * float(no_nulos[c].mean()), 2) for c in columnas},
+        },
+    )
+
+
+# Campos que, tras la limpieza de silver, SÍ son códigos DANE de longitud fija y estándar.
+# codigo_localidad (operacion_diaria) usa un esquema propio de 13 dígitos y car_t1554_dane_mpio
+# (pqr) es solo el consecutivo de 3 dígitos DENTRO del departamento (el municipio completo es
+# id_mpio, ya compuesto): por eso no se validan sueltos como códigos de 5 u 8 dígitos.
+CAMPOS_DANE_ESTANDAR: dict[str, list[tuple[str, int]]] = {
+    "prestacion": [("id_dpto", 2), ("id_mpio", 5), ("id_localidad", 8)],
+    "operacion_diaria": [("id_mpio", 5)],
+    "pqr": [("id_mpio", 5)],
+}
+
+
+def diagnosticar_silver(silver: dict[str, pd.DataFrame]) -> list[dict]:
+    """Corre sobre silver las pruebas que no comparan dos fuentes: unicidad de la llave, campos
+    críticos completos y validez DANE. Las de cruce, cardinalidad e identificador de empresa las
+    ejecuta gold antes de construir cada unión. Devuelve una fila por prueba."""
+    filas: list[dict] = []
+
+    def agregar(fuente: str, objeto: str, res: ResultadoCalidad, informativa: bool = False) -> None:
+        filas.append({
+            "fuente": fuente, "prueba": res.nombre_prueba, "objeto": objeto,
+            "metrica": res.metrica, "aprobado": res.aprobado, "informativa": informativa,
+        })
+
+    for nombre, df in silver.items():
+        cfg = CONFIG["fuentes"][nombre]
+        # La llave de pqr es AGREGADA (municipio-año-semestre-empresa): sus filas crudas son casos
+        # individuales, así que no se espera unicidad y la prueba se reporta solo como información.
+        agregar(nombre, ", ".join(cfg["campos_llave"]), probar_unicidad_llave(df, cfg["campos_llave"]),
+                informativa=bool(cfg.get("llave_es_agregada", False)))
+        agregar(nombre, ", ".join(cfg["campos_criticos"]), probar_campos_criticos_completos(df, cfg["campos_criticos"]))
         for campo, longitud in CAMPOS_DANE_ESTANDAR.get(nombre, []):
-            if campo not in df.columns:
-                continue
-            resultado_dane = probar_validez_dane(df[campo], longitud)
-            print(f"[{nombre}] validez_dane({campo}, {longitud} dígitos): {resultado_dane.metrica}%, aprobado={resultado_dane.aprobado}")
-        print()
+            if campo in df.columns:
+                agregar(nombre, f"{campo} ({longitud} dígitos)", probar_validez_dane(df[campo], longitud))
+    return filas
+
+
+if __name__ == "__main__":
+    RUTA_SILVER = Path(CONFIG["rutas"]["silver"])
+    silver_actual = {}
+    for nombre in CONFIG["fuentes"]:
+        ruta = RUTA_SILVER / f"{nombre}.parquet"
+        if ruta.exists():
+            silver_actual[nombre] = pd.read_parquet(ruta)
+        else:
+            print(f"[{nombre}] silver no encontrado en {ruta}; corre la etapa silver primero.")
+    print("Autodiagnóstico de quality_checks.py contra data/silver/*.parquet")
+    for fila in diagnosticar_silver(silver_actual):
+        marca = "informativa" if fila["informativa"] else ("aprobada" if fila["aprobado"] else "NO aprobada")
+        print(f"[{fila['fuente']}] {fila['prueba']} ({fila['objeto']}): {fila['metrica']}% -> {marca}")

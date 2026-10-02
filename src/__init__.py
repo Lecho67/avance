@@ -44,6 +44,24 @@ def obtener_token_socrata() -> str | None:
     return token or None
 
 
+_ERRORES_CONTROLADOS: list[dict[str, str]] = []
+
+
+def registrar_error_controlado(etapa: str, detalle: str) -> None:
+    """Registra un error de transformación que fue capturado sin tumbar el pipeline."""
+    _ERRORES_CONTROLADOS.append({"etapa": etapa, "detalle": detalle})
+
+
+def obtener_errores_controlados() -> list[dict[str, str]]:
+    """Devuelve (una copia de) los errores controlados registrados en esta corrida."""
+    return list(_ERRORES_CONTROLADOS)
+
+
+def reiniciar_errores_controlados() -> None:
+    """Vacía el contador de errores controlados (se llama al iniciar una corrida completa)."""
+    _ERRORES_CONTROLADOS.clear()
+
+
 def obtener_logger(nombre: str, archivo: str | None = None) -> logging.Logger:
     """Crea (o recupera) un logger que escribe en consola y en logs/<archivo>.log.
 
