@@ -1,0 +1,400 @@
+{
+  "alcance": {
+    "localidades": 97,
+    "municipios_con_prestacion": 14,
+    "observaciones": 2327,
+    "meses": 73,
+    "periodo_desde": "2020-01",
+    "periodo_hasta": "2026-01",
+    "fecha_referencia": "2026-09-30"
+  },
+  "horas": {
+    "mediana": 7.04,
+    "promedio": 7.4137,
+    "p25": 5.53,
+    "p75": 8.375,
+    "pct_servicio_casi_continuo": 2.7933,
+    "observaciones_sin_energia": 47,
+    "mediana_por_localidad": 6.7,
+    "localidades_menos_de_6_horas": 35,
+    "localidades_12_horas_o_mas": 3
+  },
+  "cobertura": {
+    "minimo": 14,
+    "mes_minimo": "2024-04",
+    "maximo": 44,
+    "mes_maximo": "2025-03",
+    "localidades_casi_todos_los_meses": 13,
+    "localidades_12_meses_o_menos": 41
+  },
+  "energia": {
+    "localidad_principal": "Puerto Leguízamo",
+    "participacion_principal_pct": 64.6075,
+    "localidades_para_80_pct": 5
+  },
+  "correlaciones": {
+    "horas_energia_activa": 0.5674,
+    "horas_energia_reactiva": 0.4881,
+    "horas_potencia_maxima": 0.2475
+  },
+  "estado_reciente": {
+    "ventana_desde": "2025-02",
+    "ventana_hasta": "2026-01",
+    "region": {
+      "horas": 7.8466,
+      "brecha": 16.1534,
+      "localidades": 46,
+      "observaciones": 496
+    },
+    "departamentos": {
+      "19": {
+        "horas": 6.2746,
+        "brecha": 17.7254,
+        "localidades": 9,
+        "observaciones": 103
+      },
+      "52": {
+        "horas": 6.6218,
+        "brecha": 17.3782,
+        "localidades": 17,
+        "observaciones": 169
+      },
+      "76": {
+        "horas": 8.859,
+        "brecha": 15.141,
+        "localidades": 18,
+        "observaciones": 200
+      },
+      "86": {
+        "horas": 14.7815,
+        "brecha": 9.2185,
+        "localidades": 2,
+        "observaciones": 24
+      }
+    },
+    "ultimo_mes": {
+      "periodo": "2026-01",
+      "localidades_reportadas": 35,
+      "localidades_con_servicio": 34,
+      "horas_promedio": 7.8177
+    }
+  },
+  "municipios_mayor_brecha": [
+    {
+      "municipio": "Magüí",
+      "departamento": "52",
+      "horas": 1.9003,
+      "brecha": 22.0997,
+      "observaciones": 35,
+      "localidades": 7
+    },
+    {
+      "municipio": "López de Micay",
+      "departamento": "19",
+      "horas": 5.82,
+      "brecha": 18.18,
+      "observaciones": 267,
+      "localidades": 14
+    },
+    {
+      "municipio": "El Charco",
+      "departamento": "52",
+      "horas": 5.8256,
+      "brecha": 18.1744,
+      "observaciones": 240,
+      "localidades": 8
+    },
+    {
+      "municipio": "Olaya Herrera",
+      "departamento": "52",
+      "horas": 5.8313,
+      "brecha": 18.1687,
+      "observaciones": 74,
+      "localidades": 3
+    },
+    {
+      "municipio": "Francisco Pizarro",
+      "departamento": "52",
+      "horas": 6.0906,
+      "brecha": 17.9094,
+      "observaciones": 31,
+      "localidades": 1
+    },
+    {
+      "municipio": "Timbiquí",
+      "departamento": "19",
+      "horas": 6.4771,
+      "brecha": 17.5229,
+      "observaciones": 398,
+      "localidades": 15
+    },
+    {
+      "municipio": "Santa Bárbara (Iscuandé)",
+      "departamento": "52",
+      "horas": 6.5853,
+      "brecha": 17.4147,
+      "observaciones": 120,
+      "localidades": 4
+    },
+    {
+      "municipio": "San Andrés de Tumaco",
+      "departamento": "52",
+      "horas": 7.0988,
+      "brecha": 16.9012,
+      "observaciones": 213,
+      "localidades": 9
+    },
+    {
+      "municipio": "La Tola",
+      "departamento": "52",
+      "horas": 7.369,
+      "brecha": 16.631,
+      "observaciones": 284,
+      "localidades": 9
+    },
+    {
+      "municipio": "Roberto Payan",
+      "departamento": "52",
+      "horas": 7.5622,
+      "brecha": 16.4378,
+      "observaciones": 19,
+      "localidades": 1
+    }
+  ],
+  "municipios_menor_brecha": [
+    {
+      "municipio": "Puerto Leguízamo",
+      "departamento": "86",
+      "horas": 13.9276,
+      "brecha": 10.0724
+    },
+    {
+      "municipio": "Buenaventura",
+      "departamento": "76",
+      "horas": 9.6125,
+      "brecha": 14.3875
+    }
+  ],
+  "localidades_menos_horas": [
+    {
+      "localidad": "El Rosario",
+      "municipio": "Magüí",
+      "horas": 0.4275,
+      "meses": 4
+    },
+    {
+      "localidad": "La Isla",
+      "municipio": "Magüí",
+      "horas": 1.186,
+      "meses": 5
+    },
+    {
+      "localidad": "Alto Estero",
+      "municipio": "Magüí",
+      "horas": 1.6787,
+      "meses": 8
+    },
+    {
+      "localidad": "Concepcion",
+      "municipio": "Buenaventura",
+      "horas": 2.4419,
+      "meses": 13
+    },
+    {
+      "localidad": "La Loma",
+      "municipio": "Magüí",
+      "horas": 2.543,
+      "meses": 10
+    },
+    {
+      "localidad": "Las Lajas",
+      "municipio": "Magüí",
+      "horas": 2.648,
+      "meses": 5
+    },
+    {
+      "localidad": "Las Mercedes",
+      "municipio": "El Charco",
+      "horas": 3.3996,
+      "meses": 31
+    },
+    {
+      "localidad": "Alteron - Uribe Uribe",
+      "municipio": "El Charco",
+      "horas": 3.5581,
+      "meses": 27
+    }
+  ],
+  "cambio_por_localidad": {
+    "localidades": 26,
+    "mediana": 0.272,
+    "mediana_inferior": -0.6072,
+    "mediana_superior": 1.0325,
+    "media": 1.1274,
+    "media_sin_las_dos_mayores_mejoras": 0.1354,
+    "mejoran": 11,
+    "empeoran": 10,
+    "se_mantienen": 5,
+    "umbral_horas": 0.5,
+    "ventana_inicial": [
+      2020,
+      2021
+    ],
+    "ventana_final": [
+      2024,
+      2025
+    ],
+    "mayores_mejoras": [
+      {
+        "localidad": "Puerto Merizalde",
+        "municipio": "Buenaventura",
+        "departamento": "76",
+        "antes": 6.9581,
+        "despues": 21.7204,
+        "cambio": 14.7623
+      },
+      {
+        "localidad": "Pital de la Costa",
+        "municipio": "San Andrés de Tumaco",
+        "departamento": "52",
+        "antes": 8.6323,
+        "despues": 19.9325,
+        "cambio": 11.3002
+      }
+    ],
+    "tercera_mayor_mejora": 2.4868,
+    "mayor_retroceso": -2.1613
+  },
+  "estacionalidad": {
+    "mes_mas_alto": 12,
+    "valor_mas_alto": 0.636,
+    "mes_mas_bajo": 1,
+    "valor_mas_bajo": -0.4819
+  },
+  "operadores": {
+    "total": 14,
+    "mejor": {
+      "nombre": "Electrificadora del Pacífico",
+      "horas": 13.535,
+      "localidades": 1,
+      "meses": 4
+    },
+    "peor": {
+      "nombre": "Energía Rural Francisco Pizarro",
+      "horas": 3.13,
+      "localidades": 1,
+      "meses": 1
+    },
+    "promedio_ponderado": 6.8977,
+    "pct_localidades_con_operador_enlazable": 52.05,
+    "periodo_desde": "2021-07",
+    "periodo_hasta": "2022-03"
+  },
+  "pqr": {
+    "total": 9282,
+    "pct_con_respuesta": 89.4743,
+    "tres_municipios_con_mas_casos": [
+      "Pasto",
+      "Ipiales",
+      "San Andrés de Tumaco"
+    ],
+    "participacion_tres_municipios_pct": 71.1377,
+    "correlacion_con_horas": {
+      "rho": 0.1102,
+      "pares": 36
+    }
+  },
+  "peor_desempeno_combinado": [
+    {
+      "municipio": "San Andrés de Tumaco",
+      "puntaje": 0.7308,
+      "ranking": 1,
+      "n_pqr": 767,
+      "brecha_horas": 17.0792
+    },
+    {
+      "municipio": "Olaya Herrera",
+      "puntaje": 0.7115,
+      "ranking": 2,
+      "n_pqr": 3,
+      "brecha_horas": 17.5588
+    },
+    {
+      "municipio": "Francisco Pizarro",
+      "puntaje": 0.6923,
+      "ranking": 3,
+      "n_pqr": 1,
+      "brecha_horas": 19.2388
+    }
+  ],
+  "fuentes": [
+    {
+      "fuente": "operacion_diaria",
+      "estado": "congelada",
+      "ultimo_periodo": "2022-03",
+      "meses_sin_datos_nuevos": 54
+    },
+    {
+      "fuente": "pqr",
+      "estado": "congelada",
+      "ultimo_periodo": "2023-06",
+      "meses_sin_datos_nuevos": 39
+    },
+    {
+      "fuente": "prestacion",
+      "estado": "desactualizada",
+      "ultimo_periodo": "2026-01",
+      "meses_sin_datos_nuevos": 8
+    }
+  ],
+  "kpis_pipeline": {
+    "pct_fuentes_integradas": {
+      "valor": 100.0,
+      "meta": 100,
+      "cumple": true
+    },
+    "pct_variables_estandarizadas": {
+      "valor": 100.0,
+      "meta": 100,
+      "cumple": true
+    },
+    "pct_registros_duplicados": {
+      "valor": 0.0,
+      "meta": 1,
+      "cumple": true
+    },
+    "pct_registros_con_trazabilidad": {
+      "valor": 100.0,
+      "meta": 100,
+      "cumple": true
+    },
+    "pct_campos_criticos_completos": {
+      "valor": 100.0,
+      "meta": 98,
+      "cumple": true
+    },
+    "numero_errores_transformacion": {
+      "valor": 0.0,
+      "meta": 0,
+      "cumple": true
+    },
+    "pct_reglas_negocio_documentadas": {
+      "valor": 100.0,
+      "meta": 100,
+      "cumple": true
+    },
+    "pct_informacion_reproducible": {
+      "valor": 100.0,
+      "meta": 100,
+      "cumple": true
+    }
+  },
+  "operacion_diaria": {
+    "registros": 250386,
+    "localidades": 958,
+    "generadores": 933,
+    "pct_calculado": 95.8768,
+    "pct_4_5_u_8_horas": 95.6667,
+    "capacidad_mediana": 40.0
+  }
+}
