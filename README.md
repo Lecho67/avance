@@ -30,6 +30,19 @@ sus tablas de apoyo y las cifras clave que usan el cuaderno `notebooks/01_eda_zn
 Todo es **idempotente**: correr el pipeline dos veces con los mismos datos de origen produce las mismas tablas
 (verificado comparando la huella de cada tabla entre corridas).
 
+## Inicio rápido
+
+```powershell
+git clone https://github.com/Lecho67/avance.git; cd avance
+python -m venv .venv; .venv\Scripts\Activate.ps1; pip install -r requirements.txt
+Copy-Item .env.example .env          # completar PG_PASSWORD (y PG_PORT si usas Docker, ver sección 2)
+python main.py                       # todo el pipeline; sin PostgreSQL igual genera data/gold
+pytest                               # pruebas, sin red
+```
+
+Luego, para ver los resultados: las tablas quedan en `data/gold` (y en el esquema `gold` de PostgreSQL), las figuras del EDA en
+`docs/eda` y el tablero se arma con la sección 9.
+
 ## 1. Instalación (PowerShell)
 
 Requiere Python 3.11 o superior (probado con 3.14).
@@ -233,7 +246,100 @@ Decisiones de diseño (código en `src/eda/`):
 4. **Diciembre es el mejor mes (+0,6 horas) y enero el peor (−0,5);** los intervalos de ambos no incluyen el cero.
 5. **Los datos limitan las conclusiones:** `prestacion` lleva 8 meses sin datos nuevos, las otras dos fuentes están congeladas, las PQR son de gas y los dos extremos de la comparación entre operadores se miden con una sola localidad.
 
-## 9. Pruebas
+## 9. Tablero de Power BI
+
+El tablero (resultado clave 4 del diseño) lee las tablas de `gold` en PostgreSQL. El archivo `.pbix` **no se versiona** (es un binario
+que contiene una copia de los datos): se entrega aparte, junto con su exportación a PDF. Esta sección permite reconstruirlo desde cero.
+
+**Requisitos:** Power BI Desktop (Windows), la base `zni_energia` cargada (`python main.py`) y el contenedor encendido
+(`docker start zni-postgres`).
+
+### 9.1 Conectar los datos
+
+1. *Inicio → Obtener datos → Base de datos PostgreSQL*. Servidor `localhost:5434`, base `zni_energia`, modo **Importar**.
+2. Credenciales de tipo *Base de datos*: usuario y contraseña del `.env`. Si pide cifrado, conectar sin cifrar (el contenedor local no usa SSL).
+3. Marcar las 19 tablas del esquema `gold` y pulsar **Load** (no hace falta *Transform Data*). Power BI las nombra `gold <tabla>`, por eso las
+   fórmulas DAX de abajo las citan entre comillas simples.
+4. Plan B si falla el conector (instalar Npgsql): *Obtener datos → Texto/CSV* sobre los `.csv` de `data/gold`.
+5. Desmarcar *Archivo → Opciones → Archivo actual → Carga de datos → Detectar automáticamente nuevas relaciones*; si no, Power BI cruza casi
+   todas las tablas por tener columnas con el mismo nombre (`id_municipio`, `id_localidad`).
+
+### 9.2 Modelo
+
+Cuatro relaciones de estrella (*muchos a uno*, filtro en una dirección, activas):
+
+| Tabla "uno" | Tabla "varios" | Columna |
+|---|---|---|
+| `dim_municipio` | `dim_localidad` | `id_municipio` |
+| `dim_municipio` | `fact_pqr` | `id_municipio` |
+| `dim_localidad` | `fact_prestacion` | `clave_localidad` |
+| `dim_localidad` | `puente_operador_localidad` | `clave_localidad` |
+
+Las tablas `ind_*`, `meta_*` y `kpis_pipeline` **no tienen relaciones**: ya vienen agregadas con sus propios nombres. Por eso un segmentador
+sobre una de ellas filtra solo esa tabla. Para que **un único selector de mes** filtre las páginas mensuales hay una tabla `Calendario`
+(*Modelado → Nueva tabla*) relacionada con la columna `periodo` de `ind_evolucion_mensual`, `ind_horas_servicio_departamento`,
+`ind_horas_servicio_municipio`, `ind_localidades_con_servicio` y `fact_prestacion` (otras cinco relaciones, nueve en total):
+
+```DAX
+Calendario = SELECTCOLUMNS(GENERATESERIES(0, 83), "Mes", EDATE(DATE(2020,1,1), [Value]))
+```
+
+La columna `Mes` se formatea `yyyy-MM`; en los segmentadores se usa `Mes` y no *Date Hierarchy*.
+
+### 9.3 Medidas DAX
+
+```DAX
+% con servicio =
+VAR conServicio = CALCULATE(SUM('gold ind_evolucion_mensual'[n_localidades_con_servicio]), 'gold ind_evolucion_mensual'[nivel_geografico] = "region")
+VAR reportadas  = CALCULATE(SUM('gold ind_evolucion_mensual'[n_localidades_reportadas]),  'gold ind_evolucion_mensual'[nivel_geografico] = "region")
+RETURN DIVIDE(conServicio, reportadas)
+
+Aviso prestación = LOOKUPVALUE('gold meta_fuentes'[advertencia], 'gold meta_fuentes'[fuente], "prestacion")
+Aviso PQR        = LOOKUPVALUE('gold meta_fuentes'[advertencia], 'gold meta_fuentes'[fuente], "pqr")
+
+KPIs cumplidos = CALCULATE(COUNTROWS('gold kpis_pipeline'), 'gold kpis_pipeline'[cumple] = TRUE()) & " de " & COUNTROWS('gold kpis_pipeline')
+```
+
+Más una columna calculada en `kpis_pipeline`: `Estado = IF('gold kpis_pipeline'[cumple], "✔ Cumple", "✘ No cumple")`.
+El `% con servicio` se calcula como medida (suma de localidades con servicio entre suma de reportadas) y **no** como promedio de
+`pct_localidades_con_servicio`, que daría el mismo peso a meses con pocas localidades.
+
+### 9.4 Páginas
+
+| Página | Qué muestra | Tablas |
+|---|---|---|
+| 1. Estado actual | Selector de mes (por defecto 2026-01); tarjetas de horas promedio, localidades con servicio, energía y `% con servicio` (región); barras de horas por departamento | `ind_evolucion_mensual`, `ind_horas_servicio_departamento` |
+| 2. Brechas | Selector de año; brecha de horas (`24 − horas`) por departamento y 10 municipios con mayor brecha | `ind_brechas_horas_servicio` |
+| 3. Evolución | Líneas de horas promedio por departamento y región; energía activa de la región; nota sobre las caídas de Puerto Leguízamo | `ind_evolucion_mensual` |
+| 4. Operadores | Horas promedio por operador, comparación y detalle operador × localidad | `ind_comparacion_operadores`, `ind_operador_localidad` |
+| 5. PQR | Dispersión horas vs. PQR por municipio (eje Y limitado a 60; Tumaco, con ~767 casos, queda fuera) y tabla de semestres | `ind_pqr_vs_horas_municipio` |
+| 6. Peor desempeño | Ranking de peor desempeño combinado y localidades con menos horas | `ind_peor_desempeno_municipio`, `ind_localidades_menos_horas` |
+| 7. Calidad y frescura | Frescura de las fuentes, los 8 KPI (`8 de 8` cumplen) y las pruebas por unión | `meta_fuentes`, `kpis_pipeline`, `meta_uniones` |
+
+Todas las páginas llevan las tarjetas de **aviso de frescura** (`Aviso prestación` y, donde se usa PQR, `Aviso PQR`) porque dos de las
+tres fuentes están congeladas y la principal está desactualizada.
+
+### 9.5 Cómo leerlo
+
+- **Las caídas de energía en la página 3 no son caídas del servicio:** Puerto Leguízamo (~65 % de la energía) no reportó en 24 de 73 meses.
+- **PQR son de gas** y se unen a las horas de servicio solo por municipio y semestre: es una asociación descriptiva, no causal. Solo
+  13 municipios tienen dato comparable (`es_comparable = True`).
+- **En la página 7 hay pruebas con `aprobado = False` y es lo esperado.** `identificador_empresa_comun` (0 % de coincidencia entre
+  operacion_diaria y pqr) hace que esa unión quede solo por municipio, y las dos de `cardinalidad_maxima` (hasta 2 operadores por
+  localidad-mes y 6 empresas por municipio-semestre) se resuelven con el tratamiento descrito en la sección 6.
+- **Buenaventura sale con 10,80 h en la página 6 y 10,13 h en la 5:** una pondera por observaciones y la otra es el promedio simple de semestres.
+- Los municipios con pocos `n_meses` (p. ej. El Rosario, un solo mes) tienen promedios poco confiables.
+
+### 9.6 Actualizar y problemas frecuentes
+
+- Para refrescar: correr `python main.py` (recarga PostgreSQL) y en Power BI *Inicio → Actualizar*.
+- *No conecta:* comprobar que el contenedor esté encendido (`docker ps`) y que el puerto sea el de `PG_PORT`.
+- *Un visual sale vacío:* revisar el panel *Filters*. Los filtros automáticos `Sum of … is (All)` sobre campos agregados pueden dejarlo sin
+  filas; se borran y se filtra por `es_comparable` o `estado_pqr`.
+- *Valores sumados sin sentido (“Sum of …”, totales raros):* en tablas de una fila por entidad, usar **Don't summarize** y apagar los totales.
+- *Un segmentador no filtra otra tabla:* es normal, las tablas `ind_*` no están relacionadas (ver 9.2).
+
+## 10. Pruebas
 
 ```powershell
 pytest            # o: python -m pytest
@@ -247,7 +353,7 @@ cálculos, formato es-CO, las 16 figuras, la reproducibilidad de los PNG, la cal
 Se verificó con pruebas de mutación: 14 comportamientos del pipeline rotos a propósito (los 14 detectados) y 20 del EDA (los 20 detectados, tras agregar
 dos pruebas para las dos primeras mutaciones que habían sobrevivido).
 
-## 10. Limitaciones conocidas
+## 11. Limitaciones conocidas
 
 - Los casos de PQR son de distribuidoras de gas; el indicador de peor desempeño combinado los usa solo como contexto municipal y no normaliza por población (no hay fuente de población en el alcance del MVP).
 - El operador solo se puede asignar a 38 de las 73 localidades y en 9 meses (2021-07 a 2022-03): la pregunta "qué operador presta el servicio en cada localidad" solo es respondible para ese subconjunto.
@@ -257,8 +363,8 @@ dos pruebas para las dos primeras mutaciones que habían sobrevivido).
 - Dos fuentes están congeladas y la principal está desactualizada (8 periodos de retraso a 2026-09-30): el tablero debe mostrar las advertencias de `meta_fuentes`.
 - La evolución solo se puede medir en las localidades con datos en ambos periodos (26 de 97): con tan pocas, el cambio mediano (+0,3 horas, intervalo del 95 %: −0,6 a +1,0) no se distingue de cero.
 - Las horas de `operacion_diaria` no sirven para medir el servicio: el 96 % de los registros declara 4, 5 u 8 horas y el 96 % del tiempo de servicio figura como calculado. Por eso las horas del análisis salen de `prestacion`.
-- El tablero de Power BI (resultado clave 4 del diseño) no forma parte de este repositorio.
+- El archivo `.pbix` del tablero no se versiona (binario con datos incrustados); la sección 9 explica cómo reconstruirlo.
 
-## 11. Equipo
+## 12. Equipo
 
 Simon Colonia Amador, Ingrid Valentina y Willy Daniel — Universidad Autónoma de Occidente, Facultad de Ingeniería y Ciencias Básicas.
