@@ -340,6 +340,16 @@ que las figuras del EDA (Cauca azul, Nariño naranja, Putumayo ámbar, Valle del
 Todas las páginas llevan las tarjetas de **aviso de frescura** (`Aviso prestación` y, donde se usa PQR, `Aviso PQR`) porque dos de las
 tres fuentes están congeladas y la principal está desactualizada.
 
+**Vista previa** (exportada desde Power BI; las imágenes están en [`imagenes/tablero/`](imagenes/tablero)):
+
+![Página 1: estado actual del servicio](imagenes/tablero/pagina_1_estado_actual.png)
+
+| | |
+|---|---|
+| ![Página 2: brechas](imagenes/tablero/pagina_2_brechas.png) | ![Página 3: evolución](imagenes/tablero/pagina_3_evolucion.png) |
+| ![Página 4: operadores](imagenes/tablero/pagina_4_operadores.png) | ![Página 5: PQR](imagenes/tablero/pagina_5_pqr.png) |
+| ![Página 6: peor desempeño](imagenes/tablero/pagina_6_peor_desempeno.png) | ![Página 7: calidad y frescura](imagenes/tablero/pagina_7_calidad_frescura.png) |
+
 ### 9.5 Cómo leerlo
 
 - **Las caídas de energía en la página 3 no son caídas del servicio:** Puerto Leguízamo (~65 % de la energía) no reportó en 24 de 73 meses.
@@ -384,7 +394,7 @@ dos pruebas para las dos primeras mutaciones que habían sobrevivido).
 - Dos fuentes están congeladas y la principal está desactualizada (8 periodos de retraso a 2026-09-30): el tablero debe mostrar las advertencias de `meta_fuentes`.
 - La evolución solo se puede medir en las localidades con datos en ambos periodos (26 de 97): con tan pocas, el cambio mediano (+0,3 horas, intervalo del 95 %: −0,6 a +1,0) no se distingue de cero.
 - Las horas de `operacion_diaria` no sirven para medir el servicio: el 96 % de los registros declara 4, 5 u 8 horas y el 96 % del tiempo de servicio figura como calculado. Por eso las horas del análisis salen de `prestacion`.
-- El archivo `.pbix` del tablero no se versiona (binario con datos incrustados); la sección 9 explica cómo reconstruirlo.
+- El archivo `.pbix` del tablero no se versiona (binario con datos incrustados); la sección 9 explica cómo reconstruirlo. Las capturas de `imagenes/tablero/` salen de su exportación a PDF.
 
 ## 12. Equipo
 

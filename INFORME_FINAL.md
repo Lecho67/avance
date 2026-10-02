@@ -110,7 +110,7 @@ API Socrata → perfilar → extract (bronze) → silver → gold → load (Post
 | KR1. Fuentes integradas en PostgreSQL con carga automatizada | 3 de 3 | 5-oct-2026 | **Cumple.** 3 de 3, carga con `python main.py` |
 | KR2. DANE válido y cruce; duplicados; campos críticos | ≥ 95 %; ≤ 1 %; ≥ 98 % | 7-oct-2026 | **Cumple.** DANE 100 %; duplicados 0 %; campos críticos 100 % (por registro, peor fuente). Los cruces tienen porcentajes sin cruce documentados (sección 3.2) |
 | KR3. Trazabilidad y reproducibilidad | 100 %; 0 errores sin controlar | 8-oct-2026 | **Cumple.** 100 % con fuente, fecha de carga, lote y regla; 0 errores; reproducibilidad 100 % |
-| KR4. Tablero con indicadores del MVP y advertencia de frescura | 1 tablero | 9-oct-2026 | **Cumple en contenido.** Tablero de 7 páginas con advertencias; archivo `.pbix` y PDF se entregan aparte (no se versionan) |
+| KR4. Tablero con indicadores del MVP y advertencia de frescura | 1 tablero | 9-oct-2026 | **Cumple en contenido.** Tablero de 7 páginas con advertencia de frescura en cada una (capturas en el anexo B). El `.pbix` y su PDF se entregan aparte; no está publicado en el servicio de Power BI |
 
 ### KPI del pipeline (`data/gold/kpis_pipeline.csv`)
 
@@ -179,6 +179,8 @@ Se tomaron estas decisiones de diseño del tablero:
 - La página de PQR limita el eje a 60 casos y lo declara: Tumaco (≈ 767) quedaría fuera de escala.
 - La página de calidad muestra las pruebas no aprobadas (3 de 18) con su explicación, no las oculta.
 
+![Página 1 del tablero: estado actual del servicio](imagenes/tablero/pagina_1_estado_actual.png)
+
 ## 10. Limitaciones
 
 - **Los datos no están al día.** Prestación termina en enero de 2026 y las otras dos fuentes están congeladas; no se puede afirmar el estado actual.
@@ -235,3 +237,21 @@ Detalles de instalación, configuración de PostgreSQL con Docker, ejecución po
 | `meta_fuentes` | 3 | Fuente |
 | `meta_uniones` | 18 | Unión × prueba |
 | `kpis_pipeline` | 8 | Indicador |
+
+## Anexo B. Capturas del tablero
+
+Exportadas desde Power BI Desktop (`ZNI_tablero.pdf`). Cada página lleva el aviso de frescura de las fuentes que usa.
+
+![Página 1: estado actual](imagenes/tablero/pagina_1_estado_actual.png)
+
+![Página 2: brechas](imagenes/tablero/pagina_2_brechas.png)
+
+![Página 3: evolución mensual](imagenes/tablero/pagina_3_evolucion.png)
+
+![Página 4: operadores](imagenes/tablero/pagina_4_operadores.png)
+
+![Página 5: PQR y horas de servicio](imagenes/tablero/pagina_5_pqr.png)
+
+![Página 6: peor desempeño combinado](imagenes/tablero/pagina_6_peor_desempeno.png)
+
+![Página 7: calidad y frescura](imagenes/tablero/pagina_7_calidad_frescura.png)
